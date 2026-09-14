@@ -6,10 +6,12 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
-import { EventsService } from './events.service.js';
 import { CreateEventDto } from './dtos/create-event.dto.js';
+import { UpdateEventDto } from './dtos/update-event.dto.js';
+import { EventsService } from './events.service.js';
 
 @Controller('events')
 export class EventsController {
@@ -30,9 +32,14 @@ export class EventsController {
     return this.eventsService.findById(id);
   }
 
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateEventDto) {
+    return this.eventsService.update(id, dto);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string): void {
-    this.eventsService.remove(id);
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.eventsService.remove(id);
   }
 }
