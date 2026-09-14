@@ -1,20 +1,39 @@
-import {randomUUID} from 'crypto';
+import { randomUUID } from 'crypto';
+
+type EventRecord = {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+};
 
 export class EventRepository {
-    private events = [];
+  private readonly events: EventRecord[] = [];
 
-  createEvent(eventData){
-    const event = {
+  createEvent(eventData: Omit<EventRecord, 'id'>): EventRecord {
+    const event: EventRecord = {
       id: randomUUID(),
-      ...eventData
+      ...eventData,
     };
+
     this.events.push(event);
-     return event;
+    return event;
   }
-   findAll(){
+
+  findAll(): EventRecord[] {
     return this.events;
   }
-  findById(id){
-    return this.events.find(event => event.id === id);
+
+  findById(id: string): EventRecord | undefined {
+    return this.events.find((event) => event.id === id);
+  }
+
+  remove(id: string): void {
+    const eventIndex = this.events.findIndex((event) => event.id === id);
+
+    if (eventIndex === -1) {
+      return;
+    }
+
+    this.events.splice(eventIndex, 1);
   }
 }
