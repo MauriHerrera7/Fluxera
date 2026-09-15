@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventQueueService } from './event-queue.service.js';
 import { EventsController } from './events.controller.js';
 import { EventsService } from './events.service.js';
 import { EventRepository } from './repositories/event.repository.js';
@@ -7,6 +8,11 @@ import { EventRepository } from './repositories/event.repository.js';
 describe('EventsController', () => {
   let controller: EventsController;
   let service: EventsService;
+
+  const idempotencyStore = new Map<string, string>();
+  const mockQueueService = {
+    enqueueEvent: async (eventId: string) => ({ id: `job-${eventId}` }),
+  };
 
   const mockRepository = {
     createEvent: async (eventData: { type: string; payload: Record<string, unknown>; status?: string }) => ({
@@ -17,6 +23,35 @@ describe('EventsController', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     }),
+    createEventWithIdempotency: async (
+      eventData: { type: string; payload: Record<string, unknown>; status?: string },
+      idempotencyKey: string,
+    ) => {
+      const existingId = idempotencyStore.get(idempotencyKey);
+
+      if (existingId) {
+        return {
+          id: existingId,
+          type: eventData.type,
+          payload: eventData.payload,
+          status: eventData.status ?? 'PENDING',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }
+
+      const generatedId = `controller-${idempotencyStore.size + 1}`;
+      idempotencyStore.set(idempotencyKey, generatedId);
+
+      return {
+        id: generatedId,
+        type: eventData.type,
+        payload: eventData.payload,
+        status: eventData.status ?? 'PENDING',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    },
     findAll: async () => [],
     findById: async (id: string) => {
       if (id === 'test-id') {
@@ -50,6 +85,8 @@ describe('EventsController', () => {
   };
 
   beforeEach(async () => {
+    idempotencyStore.clear();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [EventsController],
       providers: [
@@ -57,6 +94,10 @@ describe('EventsController', () => {
         {
           provide: EventRepository,
           useValue: mockRepository,
+        },
+        {
+          provide: EventQueueService,
+          useValue: mockQueueService,
         },
       ],
     }).compile();
@@ -66,16 +107,21 @@ describe('EventsController', () => {
   });
 
   it('should create an event through the controller', async () => {
-    const created = await controller.create({
-      type: 'invoice.created',
-      data: { invoiceId: 'abc-123' },
-    });
+    const created = await controller.create(
+      {
+        type: 'invoice.created',
+        data: { invoiceId: 'abc-123' },
+      },
+      'controller-key',
+    );
 
     expect(created).toMatchObject({
-      type: 'invoice.created',
-      data: { invoiceId: 'abc-123' },
+      data: {
+        type: 'invoice.created',
+        data: { invoiceId: 'abc-123' },
+      },
     });
-    expect(created.id).toBeDefined();
+    expect(created.data.id).toBeDefined();
   });
 
   it('should update an event through the controller', async () => {

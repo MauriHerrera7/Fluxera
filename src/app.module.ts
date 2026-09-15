@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { EventIdempotencyKeyEntity } from './events/entities/event-idempotency-key.entity.js';
 import { EventEntity } from './events/entities/event.entity.js';
 import { EventsModule } from './events/events.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
@@ -15,7 +16,7 @@ const postgresConfig = shouldUseDatabase
       username: process.env.DATABASE_USERNAME ?? 'postgres',
       password: process.env.DATABASE_PASSWORD ?? 'postgres',
       database: process.env.DATABASE_NAME ?? 'fluxera',
-      entities: [EventEntity],
+      entities: [EventEntity, EventIdempotencyKeyEntity],
       synchronize: false,
       migrations: ['dist/database/migrations/*.js'],
       migrationsRun: false,

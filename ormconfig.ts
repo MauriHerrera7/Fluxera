@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
+import { EventIdempotencyKeyEntity } from './src/events/entities/event-idempotency-key.entity.js';
 import { EventEntity } from './src/events/entities/event.entity.js';
 
 export const AppDataSource = new DataSource({
@@ -9,7 +10,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DATABASE_USERNAME ?? 'postgres',
   password: process.env.DATABASE_PASSWORD ?? 'postgres',
   database: process.env.DATABASE_NAME ?? 'fluxera',
-  entities: [EventEntity],
+  entities: [EventEntity, EventIdempotencyKeyEntity],
   migrations: ['src/database/migrations/*.ts'],
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',

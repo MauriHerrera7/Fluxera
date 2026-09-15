@@ -1,103 +1,137 @@
 # Fluxera
 
-Fluxera is a NestJS backend project focused on event processing workflows.
-
-## What it does
-
-The project currently provides the foundation for an event-driven backend:
-
-- create events
-- list events
-- fetch one event by id
-- update events partially
-- delete events
-- validate incoming requests with DTOs and ValidationPipe
-- keep the application architecture separated into Controller, Service, Repository, and persistence abstraction
-
-## Current architecture
-
-Request
-→ Controller
-→ Service
-→ Repository
-→ in-memory event store
+Fluxera is a NestJS backend for PostgreSQL-backed event processing.
 
 ## Stack
 
-- NestJS
-- TypeScript
+- NestJS and TypeScript
+- PostgreSQL with TypeORM
+- Redis with BullMQ
 - class-validator
-- @nestjs/mapped-types
-- PostgreSQL-ready TypeORM configuration
-- Vitest for unit tests
+- Vitest
+
+## Structure
+
+```text
+src/
+   app.module.ts
+   main.ts
+   database/migrations/
+   events/
+      events.module.ts
+      events.controller.ts
+      events.service.ts
+      event-queue.service.ts
+      dto/
+      entities/
+      enums/
+      repositories/
+      processors/
+      *.spec.ts
+   users/
+   notifications/
+test/
+   app.e2e-spec.ts
+```
+
+Events keeps its controller, service, DTOs, entities, lifecycle enum, repository, queue service, processor, and unit tests together. Database migrations remain separate from the domain in `src/database/migrations`.
 
 ## Local setup
 
 1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-3. Start PostgreSQL locally or with Docker:
-   ```bash
-   docker compose up -d
-   ```
-4. Run the app:
-   ```bash
-   npm run start:dev
-   ```
 
-## Environment variables
+    ```bash
+    npm install
+    ```
 
-See [.env.example](.env.example) for the defaults used by the project.
+2. Copy `.env.example` to `.env` and adjust credentials if needed.
 
-## Event endpoints
+3. Start PostgreSQL and Redis:
 
-### POST /events
-Create an event.
+    ```bash
+    docker compose up -d
+    ```
 
-Request body:
+4. Apply migrations:
+
+    ```bash
+    npm run migration:run
+    ```
+
+5. Start Fluxera:
+
+    ```bash
+    npm run start:dev
+    ```
+
+The application uses PostgreSQL from `DATABASE_HOST` and Redis from `REDIS_HOST` and `REDIS_PORT`. The default Redis queue is `events`.
+
+## Event processing
+
+`POST /events` requires an `Idempotency-Key` header and returns `202 Accepted`. The request body uses the `data` property:
+
 ```json
 {
-  "type": "user.created",
-  "data": {
-    "userId": "123"
-  }
+   "type": "user.created",
+   "data": {
+      "userId": "123"
+   }
 }
 ```
 
-### GET /events
-List all events.
+The flow is:
 
-### GET /events/:id
-Fetch a single event by id.
+```text
+Controller -> EventsService -> EventRepository -> PostgreSQL
+                                     |
+                                     v
+                              BullMQ queue
+                                     |
+                                     v
+                           EventProcessor -> PostgreSQL
+```
 
-### PATCH /events/:id
-Partially update an event. Only fields sent in the request are changed.
+Only a newly created event enqueues a job. A repeated request with the same idempotency key reuses the PostgreSQL event and does not enqueue another job. PostgreSQL is the source of truth for both events and idempotency keys.
 
-### DELETE /events/:id
-Delete an event by id.
+## Lifecycle and retries
 
-## Validation
+Normal processing follows:
 
-Global validation is enabled in [src/main.ts](src/main.ts) with:
+```text
+PENDING -> PROCESSING -> PROCESSED
+                               -> FAILED
+```
 
-- `whitelist: true`
-- `forbidNonWhitelisted: true`
-- `transform: true`
+Retries use BullMQ with three attempts and exponential backoff. A failed retry re-enters the existing lifecycle through `FAILED -> PROCESSING`; after the final failed attempt, the event remains `FAILED` and BullMQ marks the job as failed.
 
-This ensures incoming payloads are validated and unknown properties are rejected.
+The controlled failure path is available with `data.shouldFail: true` or the `event.failed` event type.
 
-## Test commands
+## API endpoints
+
+- `POST /events` creates and queues an event.
+- `GET /events` lists events.
+- `GET /events/:id` fetches one event.
+- `PATCH /events/:id` partially updates an event.
+- `PATCH /events/:id/status` applies a valid lifecycle transition.
+- `DELETE /events/:id` removes an event.
+
+Global validation uses `whitelist`, `forbidNonWhitelisted`, and `transform` in `src/main.ts`.
+
+## Tests and verification
 
 ```bash
 npm test -- --run
+npm run test:e2e
 npm run build
+npm run migration:run
 ```
 
-## Notes
+Docker checks:
 
-This project is still in the transition from in-memory storage to a real persistence layer. The current architecture is deliberately kept simple and professional, and it is ready to evolve toward PostgreSQL-backed event lifecycle management.
+```bash
+docker compose config
+
+```
+
+The E2E suite requires PostgreSQL and Redis to be available.
+npm test -- --run

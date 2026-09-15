@@ -2,10 +2,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { EventStatus } from './event-status.enum.js';
+import { EventIdempotencyKeyEntity } from './event-idempotency-key.entity.js';
+import { EventStatus } from '../enums/event-status.enum.js';
 
 @Entity('events')
 export class EventEntity {
@@ -30,4 +32,7 @@ export class EventEntity {
 
   @UpdateDateColumn({ type: 'timestamptz', name: 'updated_at' })
   updatedAt: Date;
+
+  @OneToMany(() => EventIdempotencyKeyEntity, (key) => key.event)
+  idempotencyKeys: EventIdempotencyKeyEntity[];
 }
