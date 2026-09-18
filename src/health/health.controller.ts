@@ -1,14 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
-import { Queue } from 'bullmq';
 
 @Controller('health')
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
     private readonly typeOrmHealth: TypeOrmHealthIndicator,
-    @InjectQueue('events') private readonly eventsQueue: Queue,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get()
@@ -17,9 +16,16 @@ export class HealthController {
     return this.health.check([
       () => this.typeOrmHealth.pingCheck('database'),
       async () => {
+        const RedisCtor = (await import('ioredis')).default as any;
+
+        const redis = new RedisCtor({
+          host: this.configService.get<string>('redis.host') ?? 'localhost',
+          port: this.configService.get<number>('redis.port') ?? 6379,
+          lazyConnect: true,
+        });
+
         try {
-          const client = (await (this.eventsQueue as unknown as { client: Promise<{ ping: () => Promise<string> }> }).client);
-          const result = await client.ping();
+          const result = await redis.ping();
 
           return {
             redis: {
@@ -32,6 +38,8 @@ export class HealthController {
               status: 'down',
             },
           };
+        } finally {
+          await redis.quit();
         }
       },
     ]);
