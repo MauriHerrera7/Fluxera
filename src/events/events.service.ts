@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto.js';
@@ -36,6 +37,8 @@ const toResponse = (event: {
 
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     private readonly eventRepository: EventRepository,
     private readonly eventQueueService: EventQueueService,
@@ -45,8 +48,11 @@ export class EventsService {
     const key = idempotencyKey?.trim();
 
     if (!key) {
+      this.logger.warn('Event creation rejected because Idempotency-Key is missing');
       throw new BadRequestException('Idempotency-Key header is required to create an event.');
     }
+
+    this.logger.log(`Creating event of type "${dto.type}" with idempotency key`);
 
     const result =
       (await this.eventRepository.createEventWithIdempotency?.(
@@ -70,6 +76,9 @@ export class EventsService {
 
     if (created) {
       await this.eventQueueService.enqueueEvent(event.id);
+      this.logger.log(`Event created and queued: ${event.id} (${event.type})`);
+    } else {
+      this.logger.log(`Event reused from idempotency key: ${event.id} (${event.type})`);
     }
 
     return toResponse(event);
@@ -77,6 +86,7 @@ export class EventsService {
 
   async findAll(): Promise<EventResponse[]> {
     const events = await this.eventRepository.findAll();
+    this.logger.log(`Fetched ${events.length} events`);
 
     return events.map(toResponse);
   }
@@ -85,9 +95,11 @@ export class EventsService {
     const event = await this.eventRepository.findById(id);
 
     if (!event) {
+      this.logger.warn(`Event lookup failed: ${id}`);
       throw new NotFoundException(`Event with id ${id} not found`);
     }
 
+    this.logger.log(`Fetched event: ${event.id} (${event.type})`);
     return toResponse(event);
   }
 
@@ -100,9 +112,11 @@ export class EventsService {
     });
 
     if (!updatedEvent) {
+      this.logger.warn(`Event update failed: ${id}`);
       throw new NotFoundException(`Event with id ${id} not found`);
     }
 
+    this.logger.log(`Event updated: ${updatedEvent.id} (${updatedEvent.type})`);
     return toResponse(updatedEvent);
   }
 
@@ -110,10 +124,14 @@ export class EventsService {
     const event = await this.eventRepository.findById(id);
 
     if (!event) {
+      this.logger.warn(`Event status update failed because event does not exist: ${id}`);
       throw new NotFoundException(`Event with id ${id} not found`);
     }
 
     if (!isValidEventStatusTransition(event.status, nextStatus)) {
+      this.logger.warn(
+        `Invalid event status transition for ${id}: ${event.status} -> ${nextStatus}`,
+      );
       throw new BadRequestException(
         `Invalid event status transition from ${event.status} to ${nextStatus}`,
       );
@@ -122,9 +140,11 @@ export class EventsService {
     const updatedEvent = await this.eventRepository.updateStatus(id, nextStatus);
 
     if (!updatedEvent) {
+      this.logger.warn(`Event status update failed after validation: ${id}`);
       throw new NotFoundException(`Event with id ${id} not found`);
     }
 
+    this.logger.log(`Event status changed: ${updatedEvent.id} ${event.status} -> ${updatedEvent.status}`);
     return toResponse(updatedEvent);
   }
 
@@ -132,21 +152,29 @@ export class EventsService {
     const event = await this.eventRepository.findById(eventId);
 
     if (!event) {
+      this.logger.error(`Processing requested for missing event: ${eventId}`);
       throw new NotFoundException(`Event with id ${eventId} not found`);
     }
 
     if (event.status !== EventStatus.PENDING && event.status !== EventStatus.FAILED) {
+      this.logger.log(`Skipping processing for event ${eventId} because status is ${event.status}`);
       return toResponse(event);
     }
 
+    this.logger.log(`Processing event ${eventId} (${event.type})`);
     await this.updateStatus(eventId, EventStatus.PROCESSING);
 
     try {
       await this.executeEventProcessing(event);
       const processedEvent = await this.updateStatus(eventId, EventStatus.PROCESSED);
+      this.logger.log(`Event processing completed: ${eventId} (${event.type})`);
       return processedEvent;
     } catch (error) {
       await this.updateStatus(eventId, EventStatus.FAILED);
+      this.logger.error(
+        `Event processing failed: ${eventId} (${event.type})`,
+        error instanceof Error ? error.stack : undefined,
+      );
       throw error;
     }
   }
@@ -167,5 +195,6 @@ export class EventsService {
   async remove(id: string): Promise<void> {
     await this.findById(id);
     await this.eventRepository.remove(id);
+    this.logger.log(`Event removed: ${id}`);
   }
 }

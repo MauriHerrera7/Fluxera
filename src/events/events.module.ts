@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventIdempotencyKeyEntity } from './entities/event-idempotency-key.entity.js';
 import { EventEntity } from './entities/event.entity.js';
@@ -9,17 +10,18 @@ import { EventsController } from './events.controller.js';
 import { EventsService } from './events.service.js';
 import { EventRepository } from './repositories/event.repository.js';
 
-const redisHost = process.env.REDIS_HOST ?? 'localhost';
-const redisPort = Number(process.env.REDIS_PORT ?? 6379);
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([EventEntity, EventIdempotencyKeyEntity]),
-    BullModule.forRoot({
-      connection: {
-        host: redisHost,
-        port: redisPort,
-      },
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('redis.host') ?? 'localhost',
+          port: configService.get<number>('redis.port') ?? 6379,
+        },
+      }),
     }),
     BullModule.registerQueue({
       name: 'events',

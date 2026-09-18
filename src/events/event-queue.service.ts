@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
 @Injectable()
 export class EventQueueService {
+  private readonly logger = new Logger(EventQueueService.name);
+
   constructor(@InjectQueue('events') private readonly eventsQueue: Queue) {}
 
   async enqueueEvent(eventId: string): Promise<void> {
@@ -20,5 +22,7 @@ export class EventQueueService {
         removeOnFail: false,
       },
     );
+
+    this.logger.log(`Event queued for asynchronous processing: ${eventId}`);
   }
 }
