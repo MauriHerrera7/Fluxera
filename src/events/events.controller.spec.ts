@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { EventQueueService } from './event-queue.service.js';
 import { EventsController } from './events.controller.js';
 import { EventsService } from './events.service.js';
@@ -100,7 +101,10 @@ describe('EventsController', () => {
           useValue: mockQueueService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<EventsController>(EventsController);
     service = module.get<EventsService>(EventsService);
@@ -147,5 +151,11 @@ describe('EventsController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('should declare JwtAuthGuard for the whole controller', () => {
+    const guards = Reflect.getMetadata('__guards__', EventsController) as Array<new (...args: any[]) => unknown>;
+
+    expect(guards).toContain(JwtAuthGuard);
   });
 });

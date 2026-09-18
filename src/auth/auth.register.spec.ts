@@ -61,7 +61,8 @@ describe('AuthService register flow', () => {
       email: 'new@example.com',
       role: UserRole.USER,
     });
-    expect(created.passwordHash).toBe('hashed:StrongPass123!');
+    expect(created).not.toHaveProperty('password');
+    expect(created).not.toHaveProperty('passwordHash');
   });
 
   it('should reject a duplicate email', async () => {
@@ -92,7 +93,7 @@ describe('AuthService register flow', () => {
       email: 'admin-attempt@example.com',
       password: 'StrongPass123!',
       role: UserRole.ADMIN,
-    });
+    } as any);
 
     expect(created.role).toBe(UserRole.USER);
   });

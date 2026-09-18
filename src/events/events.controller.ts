@@ -9,8 +9,10 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiExtraModels,
   ApiHeader,
@@ -20,6 +22,7 @@ import {
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CreateEventDto } from './dto/create-event.dto.js';
 import { EventResponseDto } from './dto/event-response.dto.js';
 import { UpdateEventDto, UpdateEventStatusDto } from './dto/update-event.dto.js';
@@ -27,6 +30,8 @@ import { EventStatus } from './enums/event-status.enum.js';
 import { EventsService } from './events.service.js';
 
 @Controller('events')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 @ApiTags('Events')
 @ApiExtraModels(EventResponseDto)
 export class EventsController {

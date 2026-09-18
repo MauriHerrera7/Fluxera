@@ -16,10 +16,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
   ) {
+    const jwtSecret = configService.get<string>('app.jwtSecret');
+    if (!jwtSecret) {
+      throw new Error('JWT secret is not configured');
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('app.jwtSecret') ?? 'development-secret-key',
+      secretOrKey: jwtSecret,
     });
   }
 
@@ -30,6 +35,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid token');
     }
 
-    return user;
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    };
   }
 }

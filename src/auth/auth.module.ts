@@ -20,7 +20,7 @@ import { JwtStrategy } from './strategies/jwt.strategy.js';
         const expiresIn = (configService.get<string>('app.jwtExpiresIn') ?? '1h') as any;
 
         return {
-          secret: configService.get<string>('app.jwtSecret') ?? 'development-secret-key',
+          secret: configService.get<string>('app.jwtSecret'),
           signOptions: {
             expiresIn,
           },

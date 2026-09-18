@@ -11,6 +11,7 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/auth-login.dto.js';
 import { PasswordService } from '../users/password.service.js';
 import { UserRole } from '../users/enums/user-role.enum.js';
+import { toUserResponse } from '../users/dto/user-response.dto.js';
 import { UsersService } from '../users/users.service.js';
 
 @Injectable()
@@ -35,7 +36,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return user;
+    return toUserResponse(user);
   }
 
   async register(data: RegisterDto) {
@@ -55,11 +56,13 @@ export class AuthService {
 
     const passwordHash = await this.passwordService.hashPassword(dto.password);
 
-    return this.usersService.create({
+    const user = await this.usersService.create({
       email: normalizedEmail,
       passwordHash,
       role: UserRole.USER,
     });
+
+    return toUserResponse(user);
   }
 
   async login(data: LoginDto) {
@@ -88,8 +91,13 @@ export class AuthService {
       role: user.role,
     };
 
+    const jwtSecret = this.configService.get<string>('app.jwtSecret');
+    if (!jwtSecret) {
+      throw new Error('JWT secret is not configured');
+    }
+
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('app.jwtSecret') ?? 'development-secret-key',
+      secret: jwtSecret,
       expiresIn: (this.configService.get<string>('app.jwtExpiresIn') ?? '1h') as any,
     });
 

@@ -10,6 +10,7 @@ import { EventsModule } from './events/events.module.js';
 import { HealthModule } from './health/health.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { UsersModule } from './users/users.module.js';
+import { UserEntity } from './users/entities/user.entity.js';
 
 @Module({
   imports: [
@@ -32,7 +33,7 @@ import { UsersModule } from './users/users.module.js';
           username: configService.get<string>('database.username') ?? 'postgres',
           password: configService.get<string>('database.password') ?? 'postgres',
           database: configService.get<string>('database.database') ?? 'fluxera',
-          entities: [EventEntity, EventIdempotencyKeyEntity],
+          entities: [EventEntity, EventIdempotencyKeyEntity, UserEntity],
           synchronize: false,
           migrations: ['dist/database/migrations/*.js'],
           migrationsRun: false,

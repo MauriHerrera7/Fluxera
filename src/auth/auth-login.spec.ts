@@ -49,6 +49,8 @@ describe('AuthService login flow', () => {
       role: UserRole.USER,
     });
     expect(result.accessToken).toBeDefined();
+    expect(result).not.toHaveProperty('password');
+    expect(result).not.toHaveProperty('passwordHash');
   });
 
   it('should reject invalid credentials', async () => {
