@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
 import { EventIdempotencyKeyEntity } from './entities/event-idempotency-key.entity.js';
 import { EventEntity } from './entities/event.entity.js';
 import { EventProcessor } from './processors/event-processor.js';
@@ -15,6 +16,7 @@ import { EventRepository } from './repositories/event.repository.js';
 @Module({
   imports: [
     AuthModule,
+    NotificationsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     TypeOrmModule.forFeature([EventEntity, EventIdempotencyKeyEntity]),
     BullModule.forRootAsync({

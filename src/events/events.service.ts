@@ -9,6 +9,7 @@ import { UpdateEventDto } from './dto/update-event.dto.js';
 import { EventStatus, isValidEventStatusTransition } from './enums/event-status.enum.js';
 import { EventQueueService } from './event-queue.service.js';
 import { EventRepository } from './repositories/event.repository.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 type EventResponse = {
   id: string;
@@ -42,6 +43,7 @@ export class EventsService {
   constructor(
     private readonly eventRepository: EventRepository,
     private readonly eventQueueService: EventQueueService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(dto: CreateEventDto, idempotencyKey?: string): Promise<EventResponse> {
@@ -168,6 +170,12 @@ export class EventsService {
       await this.executeEventProcessing(event);
       const processedEvent = await this.updateStatus(eventId, EventStatus.PROCESSED);
       this.logger.log(`Event processing completed: ${eventId} (${event.type})`);
+      
+      // Notify completion
+      await this.notificationsService.notifyEventProcessed(eventId, event.type).catch((err) => {
+        this.logger.error(`Failed to send processing notification for event ${eventId}`, err instanceof Error ? err.stack : undefined);
+      });
+      
       return processedEvent;
     } catch (error) {
       await this.updateStatus(eventId, EventStatus.FAILED);
@@ -175,6 +183,12 @@ export class EventsService {
         `Event processing failed: ${eventId} (${event.type})`,
         error instanceof Error ? error.stack : undefined,
       );
+      
+      // Notify failure
+      await this.notificationsService.notifyEventFailed(eventId, event.type, error instanceof Error ? error.message : String(error)).catch((err) => {
+        this.logger.error(`Failed to send failure notification for event ${eventId}`, err instanceof Error ? err.stack : undefined);
+      });
+      
       throw error;
     }
   }

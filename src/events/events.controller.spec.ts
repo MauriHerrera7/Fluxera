@@ -5,6 +5,7 @@ import { EventQueueService } from './event-queue.service.js';
 import { EventsController } from './events.controller.js';
 import { EventsService } from './events.service.js';
 import { EventRepository } from './repositories/event.repository.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 describe('EventsController', () => {
   let controller: EventsController;
@@ -99,6 +100,10 @@ describe('EventsController', () => {
         {
           provide: EventQueueService,
           useValue: mockQueueService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: { notifyEventProcessed: vi.fn(), notifyEventFailed: vi.fn() },
         },
       ],
     })

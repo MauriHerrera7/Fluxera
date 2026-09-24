@@ -29,9 +29,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     };
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      const exceptionMessage = this.getExceptionMessage(exception);
+      const sanitizedMessage = this.sanitizeSensitiveInfo(exceptionMessage);
+      const sanitizedStack =
+        exception instanceof Error && exception.stack
+          ? this.sanitizeSensitiveInfo(exception.stack)
+          : undefined;
+
       this.logger.error(
-        `${request?.method ?? 'UNKNOWN'} ${request?.url ?? ''} - ${this.getExceptionMessage(exception)}`,
-        exception instanceof Error ? exception.stack : undefined,
+        `${request?.method ?? 'UNKNOWN'} ${request?.url ?? ''} - ${sanitizedMessage}`,
+        sanitizedStack,
       );
     } else {
       this.logger.warn(`${request?.method ?? 'UNKNOWN'} ${request?.url ?? ''} - ${payload.message}`);
@@ -40,7 +47,27 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     response.status(status).json(payload);
   }
 
+  private sanitizeSensitiveInfo(text: string): string {
+    if (!text) return text;
+    
+    // Mask URL credentials: protocol://user:password@host
+    let sanitized = text.replace(/([a-zA-Z0-9+.-]+:\/\/[^:]+:)[^@]+(@)/g, '$1***$2');
+    
+    // Mask potential key=value or key: value for secrets
+    sanitized = sanitized.replace(/((?:password|secret|token|key|credential)s?["']?\s*[:=]\s*["']?)[^"'\s,;]+/gi, '$1***');
+
+    // Specific mask for literal database password phrases
+    sanitized = sanitized.replace(/(database password )([^\s]+)/gi, '$1***');
+
+    return sanitized;
+  }
+
   private getMessage(exception: unknown, status: number): string {
+    // Primera defensa para el cliente: no devolver nunca detalles en errores 500
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      return 'Internal server error';
+    }
+
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
 
@@ -61,9 +88,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
-    return status >= HttpStatus.INTERNAL_SERVER_ERROR
-      ? 'Internal server error'
-      : 'Request failed';
+    return 'Request failed';
   }
 
   private getErrorName(exception: unknown, status: number): string {
@@ -85,12 +110,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   private getExceptionMessage(exception: unknown): string {
-    if (exception instanceof Error) {
+    // Controlar qué información se manda al logger de forma predeterminada:
+    // Si es una excepción controlada, devolvemos su mensaje.
+    if (exception instanceof HttpException) {
       return exception.message;
     }
 
-    if (typeof exception === 'string') {
-      return exception;
+    // Si es un error no controlado, evitamos loguear el mensaje original 
+    // en la línea principal del log para prevenir fugas (sanitización actúa en el stack).
+    if (exception instanceof Error) {
+      return `Unhandled internal error (${exception.name})`;
     }
 
     return 'Unknown error';

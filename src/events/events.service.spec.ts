@@ -5,6 +5,8 @@ import { EventQueueService } from './event-queue.service.js';
 import { EventsService } from './events.service.js';
 import { EventRepository } from './repositories/event.repository.js';
 
+import { NotificationsService } from '../notifications/notifications.service.js';
+
 describe('EventsService', () => {
   let service: EventsService;
   let currentStatus: EventStatus = EventStatus.PENDING;
@@ -12,6 +14,10 @@ describe('EventsService', () => {
   const idempotencyStore = new Map<string, string>();
   const mockQueueService = {
     enqueueEvent: async (eventId: string) => ({ id: `job-${eventId}` }),
+  };
+  const mockNotificationsService = {
+    notifyEventProcessed: vi.fn().mockResolvedValue(undefined),
+    notifyEventFailed: vi.fn().mockResolvedValue(undefined),
   };
 
   const mockRepository = {
@@ -130,6 +136,10 @@ describe('EventsService', () => {
         {
           provide: EventQueueService,
           useValue: mockQueueService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: mockNotificationsService,
         },
       ],
     }).compile();
