@@ -34,6 +34,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
           username: configService.get<string>('database.username') ?? 'postgres',
           password: configService.get<string>('database.password') ?? 'postgres',
           database: configService.get<string>('database.database') ?? 'fluxera',
+          ssl: configService.get<boolean>('database.ssl') ? { rejectUnauthorized: true } : false,
           entities: [EventEntity, EventIdempotencyKeyEntity, UserEntity],
           synchronize: false,
           migrations: ['dist/database/migrations/*.js'],

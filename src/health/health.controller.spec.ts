@@ -10,7 +10,6 @@ describe('HealthController', () => {
         },
       } as any,
       {} as any,
-      {} as any,
     );
 
     await expect(controller.getLiveness()).resolves.toMatchObject({
@@ -32,7 +31,6 @@ describe('HealthController', () => {
           },
         }),
       } as any,
-      {} as any,
       {} as any,
     );
 

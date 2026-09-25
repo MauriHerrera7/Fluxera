@@ -1,4 +1,5 @@
 import { registerAs } from '@nestjs/config';
+import { resolveDatabaseConnection, resolveRedisConnection } from './data-stores.js';
 
 export const appConfig = registerAs('app', () => ({
   port: Number(process.env.PORT ?? 3000),
@@ -9,15 +10,6 @@ export const appConfig = registerAs('app', () => ({
   swaggerEnabled: process.env.SWAGGER_ENABLED === 'true' || process.env.SWAGGER_ENABLED === undefined,
 }));
 
-export const databaseConfig = registerAs('database', () => ({
-  host: process.env.DATABASE_HOST ?? 'localhost',
-  port: Number(process.env.DATABASE_PORT ?? 5432),
-  username: process.env.DATABASE_USERNAME ?? 'postgres',
-  password: process.env.DATABASE_PASSWORD ?? 'postgres',
-  database: process.env.DATABASE_NAME ?? 'fluxera',
-}));
+export const databaseConfig = registerAs('database', () => resolveDatabaseConnection());
 
-export const redisConfig = registerAs('redis', () => ({
-  host: process.env.REDIS_HOST ?? 'localhost',
-  port: Number(process.env.REDIS_PORT ?? 6379),
-}));
+export const redisConfig = registerAs('redis', () => resolveRedisConnection());

@@ -1,13 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
+import { redisClientOptions } from '../config/data-stores.js';
 
 @Controller('health')
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
     private readonly typeOrmHealth: TypeOrmHealthIndicator,
-    private readonly configService: ConfigService,
   ) {}
 
   @Get('liveness')
@@ -27,8 +26,7 @@ export class HealthController {
         const RedisCtor = (await import('ioredis')).default as any;
 
         const redis = new RedisCtor({
-          host: this.configService.get<string>('redis.host') ?? 'localhost',
-          port: this.configService.get<number>('redis.port') ?? 6379,
+          ...redisClientOptions(),
           lazyConnect: true,
         });
 

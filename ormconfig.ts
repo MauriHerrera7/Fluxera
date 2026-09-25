@@ -1,16 +1,20 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
+import { resolveDatabaseConnection } from './src/config/data-stores.js';
 import { EventIdempotencyKeyEntity } from './src/events/entities/event-idempotency-key.entity.js';
 import { EventEntity } from './src/events/entities/event.entity.js';
 import { UserEntity } from './src/users/entities/user.entity.js';
 
+const database = resolveDatabaseConnection();
+
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  host: process.env.DATABASE_HOST ?? 'localhost',
-  port: Number(process.env.DATABASE_PORT ?? 5432),
-  username: process.env.DATABASE_USERNAME ?? 'postgres',
-  password: process.env.DATABASE_PASSWORD ?? 'postgres',
-  database: process.env.DATABASE_NAME ?? 'fluxera',
+  host: database.host,
+  port: database.port,
+  username: database.username,
+  password: database.password,
+  database: database.database,
+  ssl: database.ssl ? { rejectUnauthorized: true } : false,
   entities: [EventEntity, EventIdempotencyKeyEntity, UserEntity],
   migrations: ['src/database/migrations/*.ts'],
   synchronize: false,
