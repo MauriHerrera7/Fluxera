@@ -150,7 +150,7 @@ export class EventsService {
     return toResponse(updatedEvent);
   }
 
-  async processEvent(eventId: string): Promise<EventResponse> {
+  async processEvent(eventId: string, isLastAttempt: boolean = true): Promise<EventResponse> {
     const event = await this.eventRepository.findById(eventId);
 
     if (!event) {
@@ -158,24 +158,27 @@ export class EventsService {
       throw new NotFoundException(`Event with id ${eventId} not found`);
     }
 
-    if (event.status !== EventStatus.PENDING && event.status !== EventStatus.FAILED) {
-      this.logger.log(`Skipping processing for event ${eventId} because status is ${event.status}`);
+    if (event.status === EventStatus.PROCESSED) {
+      this.logger.log(`Skipping processing for event ${eventId} because it is already processed`);
       return toResponse(event);
     }
 
     this.logger.log(`Processing event ${eventId} (${event.type})`);
-    await this.updateStatus(eventId, EventStatus.PROCESSING);
+
+    // Only transition to PROCESSING if not already there (handles stalled job retries)
+    if (event.status !== EventStatus.PROCESSING) {
+      await this.updateStatus(eventId, EventStatus.PROCESSING);
+    }
 
     try {
       await this.executeEventProcessing(event);
       const processedEvent = await this.updateStatus(eventId, EventStatus.PROCESSED);
       this.logger.log(`Event processing completed: ${eventId} (${event.type})`);
-      
-      // Notify completion
+
       await this.notificationsService.notifyEventProcessed(eventId, event.type).catch((err) => {
         this.logger.error(`Failed to send processing notification for event ${eventId}`, err instanceof Error ? err.stack : undefined);
       });
-      
+
       return processedEvent;
     } catch (error) {
       await this.updateStatus(eventId, EventStatus.FAILED);
@@ -183,12 +186,13 @@ export class EventsService {
         `Event processing failed: ${eventId} (${event.type})`,
         error instanceof Error ? error.stack : undefined,
       );
-      
-      // Notify failure
-      await this.notificationsService.notifyEventFailed(eventId, event.type, error instanceof Error ? error.message : String(error)).catch((err) => {
-        this.logger.error(`Failed to send failure notification for event ${eventId}`, err instanceof Error ? err.stack : undefined);
-      });
-      
+
+      if (isLastAttempt) {
+        await this.notificationsService.notifyEventFailed(eventId, event.type, error instanceof Error ? error.message : String(error)).catch((err) => {
+          this.logger.error(`Failed to send failure notification for event ${eventId}`, err instanceof Error ? err.stack : undefined);
+        });
+      }
+
       throw error;
     }
   }

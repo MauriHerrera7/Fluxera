@@ -13,6 +13,7 @@ export class EventQueueService {
       'process-event',
       { eventId },
       {
+        jobId: eventId,
         attempts: 3,
         backoff: {
           type: 'exponential',

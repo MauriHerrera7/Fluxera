@@ -12,14 +12,22 @@ export class EventProcessor extends WorkerHost {
   }
 
   async process(job: Job<{ eventId: string }>): Promise<void> {
-    this.logger.log(`Starting event processing job ${job.id} for event ${job.data.eventId}`);
+    const { eventId } = job.data;
+    const attempt = job.attemptsMade + 1;
+    const maxAttempts = job.opts.attempts ?? 1;
+    const isLastAttempt = attempt >= maxAttempts;
+
+    const start = Date.now();
+    this.logger.log(`Processing event ${eventId} (job ${job.id}, attempt ${attempt}/${maxAttempts})`);
 
     try {
-      await this.eventsService.processEvent(job.data.eventId);
-      this.logger.log(`Event processing job ${job.id} completed for event ${job.data.eventId}`);
+      await this.eventsService.processEvent(eventId, isLastAttempt);
+      const duration = Date.now() - start;
+      this.logger.log(`Event ${eventId} processed successfully in ${duration}ms (job ${job.id})`);
     } catch (error) {
+      const duration = Date.now() - start;
       this.logger.error(
-        `Event processing job ${job.id} failed for event ${job.data.eventId}`,
+        `Event ${eventId} failed in ${duration}ms (job ${job.id}, attempt ${attempt}/${maxAttempts}${isLastAttempt ? ', final' : ', will retry'})`,
         error instanceof Error ? error.stack : undefined,
       );
       throw error;

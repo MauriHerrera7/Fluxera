@@ -16,4 +16,6 @@ export const envValidationSchema = Joi.object({
   DATABASE_NAME: Joi.string().allow('').default('fluxera'),
   REDIS_HOST: Joi.string().allow('').default('localhost'),
   REDIS_PORT: Joi.number().port().default(6379),
+  CORS_ORIGIN: Joi.string().default('*'),
+  SWAGGER_ENABLED: Joi.boolean().default(true),
 }).unknown(true);

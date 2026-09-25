@@ -5,6 +5,8 @@ export const appConfig = registerAs('app', () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
+  corsOrigin: process.env.CORS_ORIGIN ?? '*',
+  swaggerEnabled: process.env.SWAGGER_ENABLED === 'true' || process.env.SWAGGER_ENABLED === undefined,
 }));
 
 export const databaseConfig = registerAs('database', () => ({

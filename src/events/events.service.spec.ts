@@ -125,6 +125,8 @@ describe('EventsService', () => {
     currentStatus = EventStatus.PENDING;
     currentPayload = { userId: '123' };
     idempotencyStore.clear();
+    mockNotificationsService.notifyEventProcessed.mockClear();
+    mockNotificationsService.notifyEventFailed.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -276,5 +278,82 @@ describe('EventsService', () => {
 
   it('should throw when removing a missing event', async () => {
     await expect(service.remove('missing-id')).rejects.toThrow(NotFoundException);
+  });
+
+  it('should process an event successfully through processEvent', async () => {
+    const result = await service.processEvent('generated-id');
+
+    expect(result.status).toBe(EventStatus.PROCESSED);
+    expect(mockNotificationsService.notifyEventProcessed).toHaveBeenCalledWith('generated-id', 'user.created');
+  });
+
+  it('should skip processing for an already PROCESSED event', async () => {
+    currentStatus = EventStatus.PROCESSED;
+
+    const result = await service.processEvent('generated-id');
+
+    expect(result.status).toBe(EventStatus.PROCESSED);
+    expect(mockNotificationsService.notifyEventProcessed).not.toHaveBeenCalled();
+  });
+
+  it('should recover from a stalled job when event is stuck in PROCESSING', async () => {
+    currentStatus = EventStatus.PROCESSING;
+
+    const result = await service.processEvent('generated-id');
+
+    expect(result.status).toBe(EventStatus.PROCESSED);
+    expect(mockNotificationsService.notifyEventProcessed).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not notify failure on intermediate retry attempts', async () => {
+    currentPayload = { shouldFail: true };
+
+    await expect(service.processEvent('generated-id', false)).rejects.toThrow('Processing failed');
+    expect(currentStatus).toBe(EventStatus.FAILED);
+    expect(mockNotificationsService.notifyEventFailed).not.toHaveBeenCalled();
+  });
+
+  it('should notify failure only on the last attempt', async () => {
+    currentPayload = { shouldFail: true };
+
+    await expect(service.processEvent('generated-id', true)).rejects.toThrow('Processing failed');
+    expect(currentStatus).toBe(EventStatus.FAILED);
+    expect(mockNotificationsService.notifyEventFailed).toHaveBeenCalledTimes(1);
+    expect(mockNotificationsService.notifyEventFailed).toHaveBeenCalledWith(
+      'generated-id',
+      'user.created',
+      expect.stringContaining('Processing failed'),
+    );
+  });
+
+  it('should succeed on retry after a previous failure', async () => {
+    currentPayload = { shouldFail: true };
+    await expect(service.processEvent('generated-id', false)).rejects.toThrow('Processing failed');
+    expect(currentStatus).toBe(EventStatus.FAILED);
+
+    currentPayload = { userId: '123' };
+    const result = await service.processEvent('generated-id', true);
+
+    expect(result.status).toBe(EventStatus.PROCESSED);
+    expect(mockNotificationsService.notifyEventProcessed).toHaveBeenCalledTimes(1);
+    expect(mockNotificationsService.notifyEventFailed).not.toHaveBeenCalled();
+  });
+
+  it('should not send duplicate failure notifications across retries', async () => {
+    currentPayload = { shouldFail: true };
+
+    await expect(service.processEvent('generated-id', false)).rejects.toThrow('Processing failed');
+    await expect(service.processEvent('generated-id', false)).rejects.toThrow('Processing failed');
+    await expect(service.processEvent('generated-id', true)).rejects.toThrow('Processing failed');
+
+    expect(mockNotificationsService.notifyEventFailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not send duplicate success notifications if processEvent is called again on a PROCESSED event', async () => {
+    await service.processEvent('generated-id');
+    expect(mockNotificationsService.notifyEventProcessed).toHaveBeenCalledTimes(1);
+
+    await service.processEvent('generated-id');
+    expect(mockNotificationsService.notifyEventProcessed).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { appConfig, databaseConfig, redisConfig } from './config/app.config.js';
@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { UsersModule } from './users/users.module.js';
 import { UserEntity } from './users/entities/user.entity.js';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware.js';
 
 @Module({
   imports: [
@@ -50,4 +51,8 @@ import { UserEntity } from './users/entities/user.entity.js';
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+  }
+}

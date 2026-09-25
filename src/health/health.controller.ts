@@ -10,9 +10,17 @@ export class HealthController {
     private readonly configService: ConfigService,
   ) {}
 
-  @Get()
+  @Get('liveness')
   @HealthCheck()
-  async getHealth() {
+  getLiveness() {
+    return this.health.check([
+      () => ({ application: { status: 'up' } })
+    ]);
+  }
+
+  @Get('readiness')
+  @HealthCheck()
+  async getReadiness() {
     return this.health.check([
       () => this.typeOrmHealth.pingCheck('database'),
       async () => {

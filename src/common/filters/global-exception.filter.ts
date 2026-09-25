@@ -35,13 +35,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         exception instanceof Error && exception.stack
           ? this.sanitizeSensitiveInfo(exception.stack)
           : undefined;
+      
+      const reqId = request?.headers?.['x-request-id'];
+      const requestId = reqId ? ` [ReqID: ${reqId}]` : '';
 
       this.logger.error(
-        `${request?.method ?? 'UNKNOWN'} ${request?.url ?? ''} - ${sanitizedMessage}`,
+        `${request?.method ?? 'UNKNOWN'} ${request?.url ?? ''}${requestId} - ${sanitizedMessage}`,
         sanitizedStack,
       );
     } else {
-      this.logger.warn(`${request?.method ?? 'UNKNOWN'} ${request?.url ?? ''} - ${payload.message}`);
+      const reqId = request?.headers?.['x-request-id'];
+      const requestId = reqId ? ` [ReqID: ${reqId}]` : '';
+      this.logger.warn(`${request?.method ?? 'UNKNOWN'} ${request?.url ?? ''}${requestId} - ${payload.message}`);
     }
 
     response.status(status).json(payload);
